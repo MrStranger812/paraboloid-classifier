@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::Path;
-use std::fs::File; // Added
-use std::io::{BufRead, BufReader}; // Added
+use std::fs::File; 
+use std::io::{BufRead, BufReader}; 
 use rand::Rng;
 
 mod gen_sam_data;
@@ -16,18 +16,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         generate_sample_data(10_000, "sample.csv")?;
         println!("Sample data file generated.");
     }
-    // We don't strictly need to generate test.csv for training, but keeping it is fine.
     if !Path::new("test.csv").exists() {
          generate_sample_data(2_000, "test.csv")?;
     }
 
-    // Architecture: 3 inputs -> 10 -> 10 -> 10 -> 1 output
     let architecture = vec![3, 10, 10, 10, 1];
     let mut net = NeuralNetwork::new(&architecture);
     
     println!("Starting training...");
 
-    // FIX 1: Proper File Reading
     let file = File::open("sample.csv")?;
     let reader = BufReader::new(file);
 
@@ -42,17 +39,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             let z: f64 = parts[2].parse().unwrap();
             let input = vec![x, y, z];
             
-            // target calculation
             let target_val: f64 = 8.0 - (x - 3.0).powi(2) - (y - 5.0).powi(2);
-            // Convert to binary classification: 1.0 if Point Z > Hat Z, else 0.0
-            // (Assuming standard classification; if regression, keep raw value)
+
             let label = if z > target_val { 1.0 } else { 0.0 };
             
             (input, label)
         })
         .collect::<Vec<(Vec<f64>, f64)>>();
 
-    // Training
     net.train(&training_data, 100, training_data.len(), 0.1);
 
     println!("Training completed.");
@@ -69,7 +63,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         let z: f64 = parts[2].parse().unwrap();
         let input = vec![x, y, z];
         
-        // Re-calculate target logic to ensure ground truth is correct
         let target_val: f64 = 8.0 - (x - 3.0).powi(2) - (y - 5.0).powi(2);
         let label = if z > target_val { 1.0 } else { 0.0 };
         
@@ -95,7 +88,6 @@ struct Layer {
 impl Layer {
     fn new(input_size: usize, output_size: usize) -> Self {
         let mut rng = rand::thread_rng();
-        // Initialize weights randomly
         let weights: Vec<Vec<f64>> = (0..output_size)
             .map(|_| {
                 (0..input_size)
@@ -104,7 +96,6 @@ impl Layer {
             })
             .collect();
         
-        // Initialize biases randomly or zero
         let biases: Vec<f64> = (0..output_size)
             .map(|_| rng.gen_range(-1.0..1.0))
             .collect();
@@ -153,13 +144,11 @@ impl NeuralNetwork {
             layer.last_inputs = current_activation.clone();
 
             let mut z_values = Vec::new();
-            // zip iterates weights and biases together
             for (neuron_weights, bias) in layer.weights.iter().zip(layer.biases.iter()) {
                 let mut sum = 0.0;
                 for (weight, input) in neuron_weights.iter().zip(current_activation.iter()) {
                     sum += weight * input;
                 }
-                // FIX 3: Use the specific bias for this neuron (*bias), not layer.biases[0]
                 sum += *bias; 
                 z_values.push(sum);
             }
@@ -176,14 +165,12 @@ impl NeuralNetwork {
 
         for i in (0..self.layers.len()).rev() {
             let layer = &self.layers[i];
-            // Initialize with zeros
             let mut current_layer_deltas: Vec<f64> = vec![0.0; layer.biases.len()];
             
             if i == self.layers.len() - 1 {
                 for j in 0..layer.biases.len() {
                     let a = layer.last_outputs[j];
                     let z = layer.last_z[j];
-                    // Cost Derivative: 2 * (Output - Target)
                     let cost_derivative = 2.0 * (a - target); 
                     current_layer_deltas[j] = cost_derivative * sigmoid_derivative(z);
                 }
@@ -192,18 +179,16 @@ impl NeuralNetwork {
                 
                 for j in 0..layer.biases.len() {
                     let z = layer.last_z[j];
-                    // Optimization: You can use `a * (1.0 - a)` here using last_outputs
                     let activation_derivative = sigmoid_derivative(z);
 
                     let mut error_sum = 0.0;
-                    // Loop through neurons of the NEXT layer
+
                     for k in 0..next_layer_deltas.len() {
                         let w_kj = next_layer.weights[k][j]; 
                         let delta_k = next_layer_deltas[k];
                         error_sum += w_kj * delta_k;
                     }
 
-                    // FIX 4: Index assignment, not push
                     current_layer_deltas[j] = error_sum * activation_derivative;
                 }
             }
